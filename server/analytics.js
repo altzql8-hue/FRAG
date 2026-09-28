@@ -1,0 +1,15 @@
+export function analytics(index,from,to) {
+  const db=index.db, now=Date.now(), today=new Date(now).setUTCHours(0,0,0,0), month=new Date(today); month.setUTCDate(1);
+  const count=(sql,args=[])=>db.prepare(`SELECT COUNT(*) n FROM keys WHERE ${sql}`).get(...args).n;
+  const stats={total:count('archived=0'),active:count("archived=0 AND status='active' AND (expiresAt=0 OR expiresAt>?)",[now]),frozen:count("archived=0 AND status='frozen'"),expired:count("archived=0 AND (status='expired' OR (status='active' AND expiresAt>0 AND expiresAt<=?))",[now]),revoked:count("archived=0 AND status='banned'"),disabled:count("archived=0 AND status='disabled'"),archived:count('archived=1'),lifetime:count('archived=0 AND expiresAt=0'),createdToday:count('createdAt>=?',[today]),createdMonth:count('createdAt>=?',[month.getTime()]),expiringToday:count('archived=0 AND expiresAt>? AND expiresAt<=?',[now,today+86400000]),expiringWeek:count('archived=0 AND expiresAt>? AND expiresAt<=?',[now,now+7*86400000]),devices:db.prepare('SELECT COUNT(*) n FROM devices').get().n};
+  for(const type of ['PREMIUM','FREE','TESTER','VIP','CUSTOM','ADMIN TEST']) stats[type]=count('archived=0 AND type=?',[type]);
+  const outcomes=db.prepare("SELECT COUNT(*) attempts,COALESCE(SUM(success),0) successes FROM events WHERE kind='license'").get();Object.assign(stats,outcomes,{failures:outcomes.attempts-outcomes.successes});
+  const activity=db.prepare("SELECT strftime('%Y-%m-%d',at/1000,'unixepoch') date, COUNT(*) attempts, SUM(success) successes, COUNT(*)-SUM(success) failures, SUM(COALESCE(json_extract(data,'$.newDevice'),0)) registrations FROM events WHERE kind='license' AND at>=? AND at<=? GROUP BY date ORDER BY date").all(from,to);
+  const creations=db.prepare("SELECT strftime('%Y-%m-%d',createdAt/1000,'unixepoch') date,COUNT(*) created FROM keys WHERE createdAt>=? AND createdAt<=? GROUP BY date ORDER BY date").all(from,to);
+  const monthly=db.prepare("SELECT strftime('%Y-%m',createdAt/1000,'unixepoch') date,COUNT(*) created FROM keys WHERE createdAt>=? AND createdAt<=? GROUP BY date ORDER BY date").all(from,to);
+  const expirations=db.prepare("SELECT strftime('%Y-%m-%d',expiresAt/1000,'unixepoch') date,COUNT(*) count FROM keys WHERE expiresAt>0 AND expiresAt>=? AND expiresAt<=? GROUP BY date ORDER BY date").all(from,to);
+  const distribution=field=>db.prepare(`SELECT ${field} name,COUNT(*) value FROM keys WHERE archived=0 GROUP BY ${field}`).all();
+  const types=distribution('type'),statuses=db.prepare("SELECT CASE WHEN status='active' AND expiresAt>0 AND expiresAt<=? THEN 'expired' ELSE status END name,COUNT(*) value FROM keys WHERE archived=0 GROUP BY name").all(now);
+  const recent=sort=>index.keys({sort,limit:10}).data.slice(0,5);
+  return {stats,activity,creations,monthly,expirations,types,statuses,mostUsed:recent('usageCount'),recentCreated:recent('createdAt'),recentEdited:recent('updatedAt'),recentUsed:recent('lastUsed').filter(k=>k.lastUsed>0),audit:index.events({kind:'audit',limit:5}).data,logins:index.events({kind:'login',limit:5}).data,serverTime:now,from,to};
+}

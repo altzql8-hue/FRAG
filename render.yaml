@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: frag-control
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: APP_ORIGIN
+        sync: false
+
+      - key: FIREBASE_DATABASE_URL
+        value: https://zqlsystem-default-rtdb.asia-southeast1.firebasedatabase.app
+
+      - key: FIREBASE_PROJECT_ID
+        value: zqlsystem
+
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-service-account.json
+
+      - key: TRUST_PROXY_HOPS
+        value: "1"

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+data/
+*-debug.log
+*.sqlite*
+service-account*.json

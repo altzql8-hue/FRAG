@@ -1,0 +1,9 @@
+node_modules
+data
+dist
+.env
+*.log
+*.sqlite*
+service-account*.json
+tests
+work

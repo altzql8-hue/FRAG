@@ -1,0 +1,48 @@
+{
+  "name": "frag-control",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"node --watch server/index.js\" \"vite --host 127.0.0.1\"",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "init-admin": "node scripts/init-admin.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "emulator": "firebase emulators:start --only database --project demo-frag",
+    "test:firebase": "firebase emulators:exec --only database --project demo-frag \"node --test tests/firebase.integration.js\""
+  },
+  "dependencies": {
+    "argon2": "^0.44.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "firebase-admin": "14.5.0",
+    "helmet": "^8.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "recharts": "^3.5.1",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "firebase-tools": "15.31.0",
+    "luaparse": "^0.3.1",
+    "supertest": "^7.1.4",
+    "vite": "^7.2.2"
+  },
+  "overrides": {
+    "gaxios": {
+      "uuid": "^11.1.1"
+    },
+    "@google-cloud/pubsub": {
+      "@opentelemetry/core": "^2.8.0"
+    }
+  }
+}
