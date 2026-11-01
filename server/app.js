@@ -8,6 +8,7 @@ import { Licenses } from './licenses.js';
 import { AppError, assert } from './errors.js';
 import { actionSchema, keyFields, keyText, listQuery, settingsSchema } from './validation.js';
 import { analytics } from './analytics.js';
+import { publicKeyMiddleware } from './publicKey.js';
 
 const eventQuery=z.object({page:z.coerce.number().int().min(1).max(1000000).default(1),limit:z.coerce.number().refine(n=>[10,25,50,100].includes(n)).default(25),search:z.string().max(150).optional(),action:z.string().max(60).optional(),resource:z.string().max(120).optional(),actor:z.string().max(100).optional(),ip:z.string().max(100).optional(),from:z.coerce.number().min(0).optional(),to:z.coerce.number().min(0).optional()}).strict();
 export function createApp({store,index,origin='http://localhost:5173',production=false,trustProxy=0,ready=()=>true}) {
@@ -15,6 +16,8 @@ export function createApp({store,index,origin='http://localhost:5173',production
   app.disable('x-powered-by');app.set('trust proxy',trustProxy);
   app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"],...(production?{}:{upgradeInsecureRequests:null})}},hsts:production?undefined:false}));
   app.use(express.json({limit:'128kb'}),cookieParser());
+  // Public AltF5 website endpoint (POST /api/public/free-key). Must stay before the origin and auth guards below.
+  app.use('/api/public',publicKeyMiddleware({licenses,ready,env:process.env}));
   app.use('/api',(req,res,next)=>{res.set('Cache-Control','no-store');assert(ready(),503,'DATABASE_UNAVAILABLE','Database connection is unavailable. Please retry.');next();});
   app.get('/api/health',(_req,res)=>res.json({success:true,data:{ready:ready()}}));
   app.post('/api/license/authenticate',async(req,res)=>{
