@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve(process.argv[2]||'.');
+const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+for (const f of ['server/app.js','server/remote.js','frontend/src/main.jsx','frontend/src/components/Shell.jsx','frontend/src/pages/RemoteApps.jsx','frontend/src/pages/remote.css','lua/remote-main.lua']) assert.ok(fs.existsSync(path.join(root,f)),`Missing ${f}`);
+const app=read('server/app.js'),shell=read('frontend/src/components/Shell.jsx'),main=read('frontend/src/main.jsx');
+for (const s of ["import { RemoteApps }", "publicKeyMiddleware({licenses,ready,env:process.env})", "/api/v1/apps/:slug/manifest", "/api/v1/apps/:slug/authenticate", "/api/apps/:slug/releases", "/api/apps/:slug/keys"])assert.ok(app.includes(s),`Missing backend wiring ${s}`);
+assert.ok(shell.includes("'/remote-apps','Remote Apps'"),'Missing sidebar link');
+assert.ok(main.includes('path="/remote-apps"'),'Missing React route');
+console.log('Remote Apps integration source is present. Run npm test and npm run build for runtime checks.');
