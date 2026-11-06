@@ -1,0 +1,20 @@
+
+/* AltF5 Remote Apps: intentionally uses the dashboard's existing dark/cyan tokens. */
+.remote-app-tabs{display:flex;gap:10px;overflow:auto;padding:0 0 16px;margin:0 0 7px}
+.remote-app-tabs button{min-width:190px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;text-align:left;border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:13px 15px}
+.remote-app-tabs button.selected{border-color:var(--accent);background:var(--panel-2)}
+.remote-app-tabs button small{width:100%;margin-left:15px}
+.remote-dot{display:inline-block;width:8px;height:8px;background:#56d994;border-radius:50%}
+.remote-dot.offline{background:#e97882}.remote-dot.maintenance{background:#edb45f}
+.remote-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.remote-metrics>div{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:20px;min-width:0}
+.remote-metrics small,.remote-metrics span{display:block;color:var(--muted);font-size:11px}
+.remote-metrics strong{display:block;font-size:19px;margin:8px 0 4px;overflow-wrap:anywhere}
+.remote-create,.remote-form,.remote-upload{display:flex;flex-direction:column;gap:15px;align-items:stretch}
+.remote-check{display:flex;align-items:center;gap:10px;font-size:13px}
+.remote-endpoints{display:grid;gap:12px}.remote-endpoints>div{display:grid;grid-template-columns:1fr auto;gap:5px;align-items:center;border:1px solid var(--border);padding:12px;border-radius:7px;min-width:0}
+.remote-endpoints small{grid-column:1/-1}.remote-endpoints code{overflow-wrap:anywhere;min-width:0}
+.remote-releases>div{border-top:1px solid var(--border);display:flex;gap:15px;align-items:center;justify-content:space-between;padding:15px 0}
+.remote-releases>div:first-child{border-top:0}.remote-releases small,.remote-releases code{display:block;color:var(--muted);margin-top:5px}
+.remote-releases p{margin:6px 0 0}.remote-live{color:#66d69e;display:inline-flex;align-items:center;gap:3px;margin-left:10px;font-size:11px;font-weight:700}
+@media(max-width:850px){.remote-metrics{grid-template-columns:1fr}.remote-releases>div{align-items:flex-start;flex-direction:column}.remote-app-tabs button{min-width:160px}}
