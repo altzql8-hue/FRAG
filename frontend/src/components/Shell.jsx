@@ -1,9 +1,9 @@
 import React,{useState,useEffect} from 'react';
 import {NavLink,useLocation,Link} from 'react-router-dom';
-import {LayoutDashboard,ChartNoAxesCombined,KeyRound,Plus,Layers,Monitor,ShieldCheck,ScrollText,Archive,SlidersHorizontal,Palette,Settings,LogOut,Menu,X,RefreshCw} from 'lucide-react';
+import {LayoutDashboard,ChartNoAxesCombined,KeyRound,Plus,Layers,Monitor,ShieldCheck,ScrollText,Archive,SlidersHorizontal,Palette,Settings,LogOut,Menu,X,RefreshCw,Radio} from 'lucide-react';
 import {useApp} from '../context';
 import {api} from '../api';
-const nav=[['/','Dashboard',LayoutDashboard],['/analytics','Analytics',ChartNoAxesCombined],['/keys','Keys',KeyRound],['/create','Create Key',Plus],['/batch','Batch Generator',Layers],['/devices','Devices',Monitor],['/login-activity','Login Activity',ShieldCheck],['/audit','Audit Logs',ScrollText],['/archived','Archived Keys',Archive],['/control','Control',SlidersHorizontal],['/appearance','Appearance',Palette],['/settings','Settings',Settings]];
+const nav=[['/','Dashboard',LayoutDashboard],['/analytics','Analytics',ChartNoAxesCombined],['/keys','Keys',KeyRound],['/create','Create Key',Plus],['/batch','Batch Generator',Layers],['/devices','Devices',Monitor],['/login-activity','Login Activity',ShieldCheck],['/audit','Audit Logs',ScrollText],['/archived','Archived Keys',Archive],['/control','Control',SlidersHorizontal],['/remote-apps','Remote Apps',Radio],['/appearance','Appearance',Palette],['/settings','Settings',Settings]];
 export function Shell({children}){
   const {session,settings,logout}=useApp(),[open,setOpen]=useState(false),[connected,setConnected]=useState(true);const location=useLocation();
   useEffect(()=>{setOpen(false);},[location.pathname]);
