@@ -62,8 +62,9 @@ test('release rollback and app scoped authentication',async()=>{
   await remote.publish('rog-premier',first.id,ctx);
   assert.equal((await remote.manifest('rog-premier')).release.id,first.id);
   await assert.rejects(()=>remote.download('rog-premier',second.id),e=>e.status===404);
+  await remote.store.set('keys/LICENSE-1',{id:'test-license',key:'LICENSE-1',status:'active',type:'FREE',appId:'rog-premier'});
   const status=await remote.authenticate('rog-premier','LICENSE-1','DEVICE-1','1.1.1.1');
-  assert.equal(status.appId,'rog-premier');assert.equal(calls[0][3],'rog-premier');
+  assert.equal(status.appId,undefined);assert.equal(calls[0][3],undefined);
 });
 
 test('invalid slugs and oversized source are rejected',async()=>{
@@ -73,13 +74,19 @@ test('invalid slugs and oversized source are rejected',async()=>{
 });
 
 
-test('license records are restricted to their assigned application',async()=>{
+test('new keys are scoped to their application; old keys remain valid for ROG',async()=>{
   const store=new MemoryStore(),index=new Projection(':memory:');
   try {
-    const licenses=new Licenses(store,index),ctx={adminId:'admin',username:'admin',ip:'127.0.0.1',sessionId:'test'};
-    await licenses.create({key:'ALT-VIRTUAL-ONLY',appId:'virtual-container',type:'FREE',days:1},ctx);
-    await assert.rejects(()=>licenses.authenticate('ALT-VIRTUAL-ONLY','device-123','local','rog-premier'),e=>e.code==='WRONG_APP');
-    const authorized=await licenses.authenticate('ALT-VIRTUAL-ONLY','device-123','local','virtual-container');
-    assert.equal(authorized.status,'active');
+    const licenses=new Licenses(store,index);
+    const remote=new RemoteApps(store,licenses);
+    const ctx={adminId:'admin',username:'admin',ip:'127.0.0.1',sessionId:'test'};
+    await remote.create({slug:'virtual-container',name:'Virtual Container',description:''},ctx);
+    const key=await remote.createKey('virtual-container',{type:'FREE',days:1,maxDevices:1},ctx);
+    assert.equal(key.appId,'virtual-container');
+    const legacy=await licenses.create({key:'ALT-LEGACY-ROG-KEY',type:'FREE'},ctx);
+    assert.equal((await remote.authenticate('rog-premier',legacy.key,'device-123','local')).status,'active');
+    await assert.rejects(()=>remote.authenticate('rog-premier',key.key,'device-123','local'),e=>e.code==='WRONG_APP');
+    await assert.rejects(()=>remote.authenticate('virtual-container',legacy.key,'device-123','local'),e=>e.code==='WRONG_APP');
+    assert.equal((await remote.authenticate('virtual-container',key.key,'device-123','local')).status,'active');
   } finally {index.close();}
 });
