@@ -1,6 +1,6 @@
 import { createHash, createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { AppError, assert } from './errors.js';
+import { assert } from './errors.js';
 
 // All releases and configuration live in Firebase; no process-local or Render disk state.
 // A one-time signing key is generated and stored under the Admin-only Firebase namespace.
@@ -126,10 +126,27 @@ export class RemoteApps {
     assert(bytes.length===record.size&&sha256(bytes)===record.sha256,503,'RELEASE_CORRUPTED','Published script failed its integrity check.');
     return {bytes,record};
   }
+  async createKey(slug,body,ctx){
+    await this.get(slug);
+    const p=z.object({type:z.string().min(1).max(32),days:z.number().min(0).max(36500),maxDevices:z.number().int().min(1).max(100),label:z.string().max(100).default('')}).strict().parse(body);
+    // Existing license creation remains unchanged. Mark only newly created keys
+    // with their owning application so old keys remain bound to ROG Premier.
+    const created=await this.licenses.create({...p,prefix:slug.slice(0,25)},ctx);
+    const result=await this.store.transact(`keys/${created.key}`,current=>{
+      assert(current,404,'KEY_NOT_FOUND','New license was not found.');
+      return {...current,appId:slug,updatedAt:Date.now()};
+    });
+    await this.licenses.audit(ctx,'app-key-create',slug,null,{key:created.key,appId:slug});
+    return {...await this.licenses.detail(created.key),appId:slug};
+  }
   async authenticate(slug,key,hwid,ip){
     const app=await this.get(slug);
     assert(app.config.status==='online',503,'APP_UNAVAILABLE','Application is not online.');
-    return this.licenses.authenticate(key,hwid,ip,slug);
+    // Never trust the URL alone. Verify the key's app ownership before binding
+    // or updating any device information.
+    const record=await this.store.get(`keys/${key}`);
+    assert(record && (record.appId||'rog-premier')===slug,403,'WRONG_APP','This license is not valid for this application.');
+    return this.licenses.authenticate(key,hwid,ip);
   }
 }
 export const remoteAppSchemas={appSchema,configSchema,uploadSchema};

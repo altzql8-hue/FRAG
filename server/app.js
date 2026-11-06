@@ -9,21 +9,37 @@ import { AppError, assert } from './errors.js';
 import { actionSchema, keyFields, keyText, listQuery, settingsSchema } from './validation.js';
 import { analytics } from './analytics.js';
 import { publicKeyMiddleware } from './publicKey.js';
+import { RemoteApps } from './remote.js';
 
 const eventQuery=z.object({page:z.coerce.number().int().min(1).max(1000000).default(1),limit:z.coerce.number().refine(n=>[10,25,50,100].includes(n)).default(25),search:z.string().max(150).optional(),action:z.string().max(60).optional(),resource:z.string().max(120).optional(),actor:z.string().max(100).optional(),ip:z.string().max(100).optional(),from:z.coerce.number().min(0).optional(),to:z.coerce.number().min(0).optional()}).strict();
 export function createApp({store,index,origin='http://localhost:5173',production=false,trustProxy=0,ready=()=>true}) {
-  const app=express(), licenses=new Licenses(store,index),auth=new Auth(store,index,licenses,{production});
+  const app=express(),licenses=new Licenses(store,index),auth=new Auth(store,index,licenses,{production}),remote=new RemoteApps(store,licenses);
   app.disable('x-powered-by');app.set('trust proxy',trustProxy);
   app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"],...(production?{}:{upgradeInsecureRequests:null})}},hsts:production?undefined:false}));
-  app.use(express.json({limit:'128kb'}),cookieParser());
-  // Public AltF5 website endpoint (POST /api/public/free-key). Must stay before the origin and auth guards below.
+  app.use(express.json({limit:'1mb'}),cookieParser());
+  // The 24-hour public key generator is deliberately preserved without modification.
   app.use('/api/public',publicKeyMiddleware({licenses,ready,env:process.env}));
   app.use('/api',(req,res,next)=>{res.set('Cache-Control','no-store');assert(ready(),503,'DATABASE_UNAVAILABLE','Database connection is unavailable. Please retry.');next();});
   app.get('/api/health',(_req,res)=>res.json({success:true,data:{ready:ready()}}));
   app.post('/api/license/authenticate',async(req,res)=>{
     assert(index.limit(`license:${req.ip}`,60,60000),429,'RATE_LIMIT','Too many requests. Try again shortly.');
     const p=z.object({key:keyText,hwid:z.string().min(3).max(256).regex(/^[^\x00-\x1f]+$/)}).strict().parse(req.body);
+    // The legacy endpoint remains compatible with existing ROG Premier keys.
+    // Keys issued to other applications cannot be authenticated through it.
+    const record=await store.get(`keys/${p.key}`);
+    assert(!record?.appId||record.appId==='rog-premier',403,'WRONG_APP','This license belongs to a different application.');
     res.json({success:true,data:await licenses.authenticate(p.key,p.hwid,req.ip)});
+  });
+  // Public per-app endpoints. A dedicated slug scopes license validation and releases.
+  app.get('/api/v1/apps/:slug/manifest',async(req,res)=>res.json({success:true,data:await remote.manifest(req.params.slug)}));
+  app.get('/api/v1/apps/:slug/releases/:id/download',async(req,res)=>{
+    const {bytes}=await remote.download(req.params.slug,req.params.id);
+    res.set('X-Content-Type-Options','nosniff').type('text/plain; charset=utf-8').send(bytes.toString('utf8'));
+  });
+  app.post('/api/v1/apps/:slug/authenticate',async(req,res)=>{
+    assert(index.limit(`license:${req.params.slug}:${req.ip}`,60,60000),429,'RATE_LIMIT','Too many requests. Try again shortly.');
+    const p=z.object({key:keyText,hwid:z.string().min(3).max(256).regex(/^[^\x00-\x1f]+$/)}).strict().parse(req.body);
+    res.json({success:true,data:await remote.authenticate(req.params.slug,p.key,p.hwid,req.ip)});
   });
   app.use('/api',(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)) assert(req.get('origin')===origin,403,'ORIGIN','Request origin is not allowed.'); next();});
   app.post('/api/auth/login',async(req,res)=>res.json({success:true,data:await auth.login(req.body,req,res)}));
@@ -39,6 +55,15 @@ export function createApp({store,index,origin='http://localhost:5173',production
   app.get('/api/control/sessions',async(req,res)=>res.json({success:true,data:await auth.sessions(req)}));
   app.post('/api/control/sessions/:id/revoke',async(req,res)=>{z.string().regex(/^(others|[a-f0-9]{64})$/).parse(req.params.id);res.json({success:true,data:await auth.revoke(req,req.params.id)});});
   app.use('/api',(req,res,next)=>{assert(!req.auth.admin.forceChange,403,'FIRST_SETUP','Change your initial password and PIN on the Control page.');next();});
+  // New server-managed application, endpoint, license, and Lua release controls.
+  app.get('/api/apps',async(req,res)=>res.json({success:true,data:await remote.list()}));
+  app.post('/api/apps',async(req,res)=>res.status(201).json({success:true,data:await remote.create(req.body,req.context)}));
+  app.get('/api/apps/:slug',async(req,res)=>res.json({success:true,data:await remote.get(req.params.slug)}));
+  app.put('/api/apps/:slug/config',async(req,res)=>res.json({success:true,data:await remote.config(req.params.slug,req.body,req.context)}));
+  app.get('/api/apps/:slug/releases',async(req,res)=>res.json({success:true,data:await remote.releases(req.params.slug)}));
+  app.post('/api/apps/:slug/releases',async(req,res)=>res.status(201).json({success:true,data:await remote.upload(req.params.slug,req.body,req.context)}));
+  app.post('/api/apps/:slug/releases/:id/publish',async(req,res)=>res.json({success:true,data:await remote.publish(req.params.slug,req.params.id,req.context)}));
+  app.post('/api/apps/:slug/keys',async(req,res)=>res.status(201).json({success:true,data:await remote.createKey(req.params.slug,req.body,req.context)}));
   app.get('/api/settings',async(_req,res)=>res.json({success:true,data:await licenses.settings()}));
   app.put('/api/settings',async(req,res)=>{
     const p=z.object({settings:settingsSchema,currentPassword:z.string().max(128).optional(),pin:z.string().max(12).optional()}).strict().parse(req.body);
@@ -101,5 +126,5 @@ export function createApp({store,index,origin='http://localhost:5173',production
     if(status>=500) console.error(JSON.stringify({component:'api',event:'request_failed',code:err.code||'INTERNAL',message:err.message?.slice(0,200)}));
     res.status(status).json({success:false,error:{code:invalid?'VALIDATION':err.code||'INTERNAL',message:invalid?err.issues.map(i=>`${i.path.join('.')}: ${i.message}`).join('; '):status>=500?'The operation could not complete. Check connectivity and retry.':err.message}});
   });
-  return {app,licenses,auth};
+  return {app,licenses,auth,remote};
 }
